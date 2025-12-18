@@ -234,6 +234,7 @@ sequenceDiagram
 | `inventory` | 재고 현황 | ✅ |
 | `orders` | 주문 정보 | ✅ |
 | `order_items` | 주문 상세 | ❌ |
+| `reviews` | **⭐ 사용자 리뷰** | ❌ |
 | `user_favorites` | **찜한 빵 + 알림 설정** | ❌ |
 | `notification_settings` | 알림 설정 | ❌ |
 | `push_tokens` | FCM 토큰 | ❌ |
@@ -246,6 +247,32 @@ sequenceDiagram
 | `production_logs` | 빵 생산/출고 기록 | 출고 시 |
 | `daily_inventory_snapshot` | 일별 판매 스냅샷 | 마감 시 |
 | `recipes` | 레시피/원재료 정보 | 수동 등록 |
+
+### 인기 랭킹 뷰 (MVP)
+
+> 오늘 판매량 기준 실시간 인기 빵 랭킹을 계산하는 뷰
+
+```sql
+-- 오늘 인기 빵 랭킹 뷰
+CREATE VIEW popular_products_today AS
+SELECT 
+  p.id,
+  p.name,
+  p.price,
+  p.image_url,
+  i.quantity AS remaining_stock,
+  COALESCE(SUM(oi.quantity), 0) AS sold_today,
+  RANK() OVER (ORDER BY COALESCE(SUM(oi.quantity), 0) DESC) AS rank
+FROM products p
+LEFT JOIN inventory i ON i.product_id = p.id
+LEFT JOIN order_items oi ON oi.product_id = p.id
+LEFT JOIN orders o ON o.id = oi.order_id 
+  AND DATE(o.created_at) = CURRENT_DATE
+  AND o.status IN ('confirmed', 'preparing', 'ready', 'completed')
+WHERE p.is_active = true
+GROUP BY p.id, p.name, p.price, p.image_url, i.quantity
+ORDER BY sold_today DESC;
+```
 
 ### SQL 스키마
 
@@ -276,6 +303,7 @@ CREATE TABLE products (
   name TEXT NOT NULL,
   price INT NOT NULL,
   description TEXT,
+  customer_preference TEXT, -- 👥 "직장인에게 인기", "수업 사이 간식으로 딱!"
   image_url TEXT,
   ingredients TEXT,
   allergens TEXT[],
@@ -345,6 +373,41 @@ CREATE TABLE user_favorites (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(user_id, product_id)
 );
+
+-- ⭐ 사용자 리뷰
+CREATE TABLE reviews (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+  order_id UUID REFERENCES orders(id), -- 실제 구매 후 리뷰 (선택)
+  rating INT NOT NULL CHECK (rating >= 1 AND rating <= 5), -- 1~5점
+  content TEXT, -- 리뷰 내용
+  helpful_count INT DEFAULT 0, -- 도움이 됐어요 수
+  is_best BOOLEAN DEFAULT false, -- 베스트 리뷰 여부 (관리자 지정)
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, product_id, order_id) -- 주문당 1개 리뷰
+);
+
+-- 리뷰 도움됐어요 기록
+CREATE TABLE review_helpful (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  review_id UUID REFERENCES reviews(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(review_id, user_id)
+);
+
+-- 베스트 리뷰 뷰 (상품별 최고 리뷰)
+CREATE VIEW best_reviews AS
+SELECT 
+  r.*,
+  u.name AS user_name,
+  p.name AS product_name
+FROM reviews r
+JOIN users u ON u.id = r.user_id
+JOIN products p ON p.id = r.product_id
+WHERE r.is_best = true OR r.helpful_count >= 10
+ORDER BY r.is_best DESC, r.helpful_count DESC, r.rating DESC;
 ```
 
 ### AI 데이터 수집용 테이블
