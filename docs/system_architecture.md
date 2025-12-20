@@ -13,6 +13,7 @@
 | 데이터베이스/실시간 | **Supabase** |
 | 개발 주체 | **직접 개발** |
 | MVP 푸시알림 | **포함** (핵심 기능) |
+| 개발 방향 | **독립 시스템** (포트폴리오 우선) |
 
 ---
 
@@ -217,6 +218,137 @@ sequenceDiagram
     EF->>FCM: 푸시 알림 요청 (해당 고객만)
     FCM->>C: "❤️ 찜한 기본소금빵이 방금 나왔어요!"
 ```
+
+---
+
+## 🔗 [확장 옵션] 페이히어 POS 연동
+
+> [!NOTE]
+> **이 섹션은 선택적 확장 기능입니다.**
+> 기본 개발은 V-Bakery **독립 시스템**으로 진행하며, 
+> 실제 매장 적용 시 페이히어 연동을 추가할 수 있습니다.
+> 연동 시 사장님 앱의 중복 기능(재고 관리, POS)은 제거됩니다.
+
+> **핵심 가치**: 오프라인(페이히어 POS) ↔ 온라인(V-Bakery 앱) 실시간 재고 동기화로 
+> "품절된 빵을 예약하는 문제"를 해결합니다.
+
+### 연동 필요성
+
+| 현재 문제 | V-Bakery 해결 방안 |
+|---|---|
+| 네이버 예약이 오프라인 재고와 연동 안 됨 | 단일 재고 DB로 오프라인/온라인 통합 |
+| 오프라인 판매 후 온라인에 반영 지연 | 페이히어 Webhook으로 즉시 반영 |
+| 품절 빵 예약 가능 | 실시간 재고 차감으로 방지 |
+
+### 통합 아키텍처
+
+```mermaid
+graph TB
+    subgraph "오프라인 채널"
+        POS[📟 페이히어 POS]
+        Offline[🧑 매장 고객]
+    end
+    
+    subgraph "V-Bakery 백엔드"
+        API[🐍 FastAPI]
+        DB[(Supabase DB<br/>Single Source of Truth)]
+        RT[Realtime]
+    end
+    
+    subgraph "온라인 채널"
+        CustomerApp[📱 고객 앱]
+        AdminApp[📱 사장님 앱]
+    end
+    
+    Offline -->|결제| POS
+    POS -->|Webhook| API
+    API -->|재고 업데이트| DB
+    DB -->|실시간 동기화| RT
+    RT -->|재고 변경 알림| CustomerApp
+    RT -->|재고 변경 알림| AdminApp
+    
+    CustomerApp -->|온라인 주문| API
+    AdminApp -->|재고 수동 조정| API
+```
+
+### 실시간 재고 동기화 플로우
+
+```mermaid
+sequenceDiagram
+    participant 매장손님 as 🧑 매장 손님
+    participant POS as 📟 페이히어 POS
+    participant Webhook as 페이히어 Webhook
+    participant API as V-Bakery API
+    participant DB as Supabase DB
+    participant RT as Realtime
+    participant App as 📱 고객 앱
+
+    rect rgb(255, 230, 230)
+    Note over 매장손님,POS: 오프라인 판매
+    매장손님->>POS: 소금빵 2개 구매
+    POS->>Webhook: 결제 완료 이벤트
+    Webhook->>API: POST /pos/sync (상품, 수량)
+    API->>DB: inventory UPDATE (재고 -2)
+    end
+
+    rect rgb(230, 255, 230)
+    Note over DB,App: 실시간 재고 반영
+    DB->>RT: 변경 감지
+    RT->>App: 실시간 구독 알림
+    App->>App: "소금빵 8개 남음" 표시
+    end
+```
+
+### API 연동 시나리오
+
+> [!IMPORTANT]
+> 페이히어 API 연동 가능 여부는 **페이히어 측 상담 후 확정**됩니다.
+
+#### 시나리오 A: Webhook 연동 (권장)
+
+페이히어에서 결제 완료 시 V-Bakery 서버로 Webhook 전송:
+
+```python
+# FastAPI - 페이히어 Webhook 수신 엔드포인트
+@router.post("/pos/webhook")
+async def receive_pos_webhook(payload: POSWebhookPayload):
+    """
+    페이히어 결제 완료 시 호출되는 Webhook
+    - 판매 상품 정보 수신
+    - 재고 자동 차감
+    - pos_sync_logs 테이블에 기록
+    """
+    for item in payload.items:
+        await update_inventory(
+            product_id=item.product_id,
+            quantity_change=-item.quantity
+        )
+    return {"status": "success"}
+```
+
+#### 시나리오 B: API Polling (대안)
+
+주기적으로 페이히어 API에서 판매 데이터 조회:
+
+```python
+# 5분마다 페이히어 판매 데이터 동기화
+@scheduler.task("every 5 minutes")
+async def sync_pos_sales():
+    sales = await payhere_api.get_recent_sales(since=last_sync_time)
+    for sale in sales:
+        await update_inventory_from_sale(sale)
+```
+
+### 대안 시나리오 (API 미제공 시)
+
+> [!WARNING]
+> 페이히어 API가 개별 매장에 제공되지 않을 경우 아래 대안을 고려합니다.
+
+| 대안 | 설명 | 장단점 |
+|---|---|---|
+| **수동 동기화** | 사장님이 POS 판매 후 앱에서 재고 수동 조정 | 간단하지만 누락 가능성 |
+| **일괄 동기화** | 마감 시 CSV 내보내기 후 업로드 | 실시간 아님, AI 분석용 |
+| **POS 전환** | 토스 포스 등 API 지원 POS로 교체 | 근본적 해결, 전환 비용 발생 |
 
 ---
 
