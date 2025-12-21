@@ -2,9 +2,13 @@ import { View, Text, ScrollView, StyleSheet, Pressable, useWindowDimensions } fr
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
 import { breads, Bread } from "../../data/breads"
+import { useFavorites } from "../../context/FavoritesContext";
 
-
-function BreadCard({ bread }: { bread: Bread }) {
+function BreadCard({ bread, isFavorite, onToggleFavorite }: {
+    bread: Bread;
+    isFavorite: boolean;
+    onToggleFavorite: () => void;
+}) {
     const isInactive = bread.status === "scheduled" || bread.status === "soldout";
 
     return (
@@ -20,9 +24,14 @@ function BreadCard({ bread }: { bread: Bread }) {
                 <Text style={styles.emoji}>{bread.emoji}</Text>
             </View>
             <View style={styles.cardInfo}>
-                <Text style={[styles.cardName, bread.status === "soldout" && styles.soldoutText]}>
-                    {bread.name}
-                </Text>
+                <View style={styles.cardHeader}>
+                    <Text style={[styles.cardName, bread.status === "soldout" && styles.soldoutText]}>
+                        {bread.name}
+                    </Text>
+                    <Pressable onPress={(e) => { e.stopPropagation(); onToggleFavorite(); }}>
+                        <Text style={{ fontSize: 16 }}>{isFavorite ? '❤️' : '🤍'}</Text>
+                    </Pressable>
+                </View>
                 {bread.status === "active" && (
                     <Text style={styles.stockText}>🔥 {bread.stock}개 남음</Text>
                 )}
@@ -39,6 +48,7 @@ function BreadCard({ bread }: { bread: Bread }) {
 
 export default function HomeScreen() {
     const { width } = useWindowDimensions();
+    const { isFavorite, toggleFavorite } = useFavorites();
 
     // 화면 너비에 따라 열 개수 결정
     const getColumnCount = () => {
@@ -68,7 +78,12 @@ export default function HomeScreen() {
                     {columns.map((column, columnIndex) => (
                         <View key={columnIndex} style={styles.column}>
                             {column.map(bread => (
-                                <BreadCard key={bread.id} bread={bread} />
+                                <BreadCard
+                                    key={bread.id}
+                                    bread={bread}
+                                    isFavorite={isFavorite(bread.id)}
+                                    onToggleFavorite={() => toggleFavorite(bread.id)}
+                                />
                             ))}
                         </View>
                     ))}
@@ -132,6 +147,11 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontWeight: '600',
         color: '#212121',
+    },
+    cardHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
     },
     soldoutText: {
         textDecorationLine: 'line-through',
