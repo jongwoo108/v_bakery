@@ -1,23 +1,17 @@
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
 import { useCart } from "../../context/CartContext";
-// 임시 데이터 (나중에 API로 대체)
-const breadData: Record<string, any> = {
-    "1": { name: "기본소금빵", emoji: "🥐", price: 3500, stock: 8, story: "매일 아침 5시, 비건버터를 직접 만들어 반죽에 섞습니다. 겉은 바삭, 속은 촉촉한 소금빵입니다." },
-    "2": { name: "바게트", emoji: "🥖", price: 4000, stock: 5, story: "프랑스 전통 방식으로 24시간 저온 숙성한 바게트입니다." },
-    "3": { name: "베이글", emoji: "🥯", price: 3000, stock: 0, time: "11:30", story: "뉴욕 스타일 쫄깃한 베이글. 끓는 물에 데친 후 오븐에서 구워냅니다." },
-    "4": { name: "꿀고구마빵", emoji: "🍞", price: 4500, stock: 12, isNew: true, story: "제철 고창 꿀고구마를 듬뿍 넣은 신메뉴입니다." },
-    "5": { name: "시나몬롤", emoji: "🧁", price: 4000, stock: 3, story: "스웨덴식 시나몬롤. 진한 시나몬과 비건 크림치즈 글레이즈." },
-    "6": { name: "크루아상", emoji: "🥐", price: 3500, stock: 0, story: "27겹의 레이어로 만든 버터 향 가득한 크루아상." },
-    "7": { name: "단팥빵", emoji: "🥮", price: 3000, stock: 6, story: "100% 국산 팥으로 만든 달콤한 단팥빵입니다." },
-    "8": { name: "치아바타", emoji: "🍞", price: 3500, stock: 4, story: "이탈리아 전통 치아바타. 올리브오일과 함께 즐겨보세요." },
-};
+import { breads } from "../../data/breads";
+import { useState } from "react";
+import { AlertModal } from "../../components/AlertModal";
+
 
 export default function ProductDetailScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
-    const bread = breadData[id || "1"];
+    const bread = breads.find(b => b.id === Number(id));
     const { addToCart } = useCart();
+    const [showModal, setShowModal] = useState(false);
 
     const handleAddToCart = () => {
         if (!id || !bread) return;
@@ -27,24 +21,14 @@ export default function ProductDetailScreen() {
             emoji: bread.emoji,
             price: bread.price,
         });
-        Alert.alert("장바구니", `${bread.name}을(를) 담았어요!`, [
-            { text: "계속 쇼핑", style: "cancel" },
-            { text: "장바구니 보기", onPress: () => router.push("/(tabs)/cart") }
-        ]);
+        setShowModal(true);
     };
-    if (!bread) {
-        return (
-            <SafeAreaView style={styles.container}>
-                <Text>상품을 찾을 수 없습니다.</Text>
-            </SafeAreaView>
-        );
-    }
 
     const isSoldOut = bread.stock === 0 && !bread.time;
     const isScheduled = bread.stock === 0 && bread.time;
 
     return (
-        <SafeAreaView style={styles.container}>
+        <><SafeAreaView style={styles.container}>
             {/* 헤더 */}
             <View style={styles.header}>
                 <Pressable onPress={() => router.back()} style={styles.backButton}>
@@ -106,6 +90,19 @@ export default function ProductDetailScreen() {
                 )}
             </View>
         </SafeAreaView>
+            <AlertModal
+                visible={showModal}
+                title="장바구니"
+                message={`${bread.name}을(를) 담았어요!`}
+                cancelText="계속 쇼핑"
+                confirmText="장바구니 보기"
+                onCancel={() => setShowModal(false)}
+                onConfirm={() => {
+                    setShowModal(false);
+                    router.push("/(tabs)/cart");
+                }}
+            />
+        </>
     );
 }
 

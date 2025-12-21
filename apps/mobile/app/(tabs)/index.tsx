@@ -1,20 +1,8 @@
 import { View, Text, ScrollView, StyleSheet, Pressable, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
+import { breads, Bread } from "../../data/breads"
 
-// 빵 데이터 (임시)
-const breads = [
-    { id: 1, name: "기본소금빵", emoji: "🥐", stock: 8, status: "active", height: 130 },
-    { id: 2, name: "바게트", emoji: "🥖", stock: 5, status: "active", height: 160 },
-    { id: 3, name: "베이글", emoji: "🥯", stock: 0, status: "scheduled", time: "11:30", height: 140 },
-    { id: 4, name: "꿀고구마빵", emoji: "🍞", stock: 12, status: "active", isNew: true, height: 120 },
-    { id: 5, name: "시나몬롤", emoji: "🧁", stock: 3, status: "active", height: 150 },
-    { id: 6, name: "크루아상", emoji: "🥐", stock: 0, status: "soldout", height: 130 },
-    { id: 7, name: "단팥빵", emoji: "🥮", stock: 6, status: "active", height: 145 },
-    { id: 8, name: "치아바타", emoji: "🍞", stock: 4, status: "active", height: 135 },
-];
-
-type Bread = typeof breads[0];
 
 function BreadCard({ bread }: { bread: Bread }) {
     const isInactive = bread.status === "scheduled" || bread.status === "soldout";
