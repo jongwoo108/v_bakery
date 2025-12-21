@@ -1,6 +1,8 @@
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Alert, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useState, useEffect } from "react";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback } from "react";
 import { supabase, Bread } from "../lib/supabase";
 
 type BreadStatus = "active" | "scheduled" | "soldout";
@@ -22,9 +24,12 @@ export default function AdminDashboard() {
     const [loading, setLoading] = useState(true);
     const [addStockAmounts, setAddStockAmounts] = useState<Record<number, string>>({});
 
-    useEffect(() => {
-        fetchBreads();
-    }, []);
+    // 화면 포커스될 때마다 새로고침
+    useFocusEffect(
+        useCallback(() => {
+            fetchBreads();
+        }, [])
+    );
 
     const fetchBreads = async () => {
         const { data, error } = await supabase
@@ -127,6 +132,31 @@ export default function AdminDashboard() {
         }
     };
 
+    const deleteBread = async (bread: Bread) => {
+        const confirmDelete = () => {
+            return new Promise<boolean>((resolve) => {
+                if (Platform.OS === 'web') {
+                    resolve(window.confirm(`${bread.name}을(를) 삭제하시겠습니까?`));
+                } else {
+                    Alert.alert(
+                        "삭제 확인",
+                        `${bread.name}을(를) 삭제하시겠습니까?`,
+                        [
+                            { text: "취소", onPress: () => resolve(false) },
+                            { text: "삭제", onPress: () => resolve(true), style: "destructive" }
+                        ]
+                    );
+                }
+            });
+        };
+
+        const confirmed = await confirmDelete();
+        if (!confirmed) return;
+
+        await supabase.from('breads').delete().eq('id', bread.id);
+        setBreads(current => current.filter(b => b.id !== bread.id));
+    };
+
     if (loading) {
         return (
             <SafeAreaView style={styles.container}>
@@ -156,6 +186,12 @@ export default function AdminDashboard() {
                                 </Pressable>
                             </View>
                             <Text style={styles.currentStock}>현재: {bread.stock}개</Text>
+                            <Pressable
+                                style={styles.deleteButton}
+                                onPress={() => deleteBread(bread)}
+                            >
+                                <Text style={styles.deleteText}>🗑️</Text>
+                            </Pressable>
                         </View>
 
                         {bread.status !== "soldout" && (
@@ -203,6 +239,14 @@ export default function AdminDashboard() {
                     </View>
                 ))}
             </ScrollView>
+
+            {/* FAB Button */}
+            <Pressable
+                style={styles.fab}
+                onPress={() => router.push('/add-bread')}
+            >
+                <Text style={styles.fabText}>+</Text>
+            </Pressable>
         </SafeAreaView>
     );
 }
@@ -228,4 +272,23 @@ const styles = StyleSheet.create({
     actionButton: { paddingHorizontal: 16, height: 40, backgroundColor: '#43A047', borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
     addButton: { backgroundColor: '#FFA726' },
     actionButtonText: { color: 'white', fontSize: 14, fontWeight: 'bold' },
+    deleteButton: { padding: 8 },
+    deleteText: { fontSize: 18 },
+    fab: {
+        position: 'absolute',
+        right: 20,
+        bottom: 20,
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: '#43A047',
+        alignItems: 'center',
+        justifyContent: 'center',
+        elevation: 4,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+    },
+    fabText: { fontSize: 28, color: 'white', fontWeight: 'bold' },
 });

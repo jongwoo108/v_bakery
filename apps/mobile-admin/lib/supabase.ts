@@ -16,4 +16,5 @@ export interface Bread {
     story: string;
     scheduled_time: string | null;
     is_new: boolean;
+    image_url: string | null;
 }

@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, StyleSheet, Pressable, useWindowDimensions, RefreshControl } from "react-native";
+import { View, Text, ScrollView, StyleSheet, Pressable, useWindowDimensions, RefreshControl, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useFavorites } from "../../context/FavoritesContext";
@@ -46,7 +46,11 @@ function BreadCard({ bread, isFavorite, onToggleFavorite, currentTime }: {
                 </View>
             )}
             <View style={[styles.cardImage, { height: bread.height }]}>
-                <Text style={styles.emoji}>{bread.emoji}</Text>
+                {bread.image_url ? (
+                    <Image source={{ uri: bread.image_url }} style={styles.breadImage} />
+                ) : (
+                    <Text style={styles.emoji}>{bread.emoji}</Text>
+                )}
             </View>
             <View style={styles.cardInfo}>
                 <View style={styles.cardHeader}>
@@ -210,6 +214,12 @@ const styles = StyleSheet.create({
         backgroundColor: '#F5F5F5',
         alignItems: 'center',
         justifyContent: 'center',
+        overflow: 'hidden',
+    },
+    breadImage: {
+        width: '100%',
+        height: '100%',
+        resizeMode: 'cover',
     },
     emoji: {
         fontSize: 48,

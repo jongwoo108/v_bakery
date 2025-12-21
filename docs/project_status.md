@@ -1,6 +1,6 @@
 # V-Bakery 프로젝트 진행 현황
 
-## 📊 전체 진행률: 40%
+## 📊 전체 진행률: 50%
 
 ---
 
@@ -25,6 +25,8 @@
 - [x] 찜하기 기능 (Context API)
 - [x] Supabase 연동 (데이터 조회)
 - [x] Pull-to-refresh
+- [x] 실시간 타이머 (출고 예정 카운트다운)
+- [x] 이미지 표시 (Supabase Storage)
 
 ### Phase 3: 사장님 앱 (mobile-admin)
 - [x] 재고 관리 UI
@@ -32,6 +34,8 @@
 - [x] 출고 시간 설정
 - [x] 출고 알림 버튼
 - [x] Supabase 연동 (CRUD)
+- [x] 빵 추가 기능 (이미지 업로드 포함)
+- [x] 빵 삭제 기능
 
 ---
 
