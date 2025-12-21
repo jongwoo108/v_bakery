@@ -1,7 +1,7 @@
-import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
-
+import { useCart } from "../../context/CartContext";
 // 임시 데이터 (나중에 API로 대체)
 const breadData: Record<string, any> = {
     "1": { name: "기본소금빵", emoji: "🥐", price: 3500, stock: 8, story: "매일 아침 5시, 비건버터를 직접 만들어 반죽에 섞습니다. 겉은 바삭, 속은 촉촉한 소금빵입니다." },
@@ -17,7 +17,21 @@ const breadData: Record<string, any> = {
 export default function ProductDetailScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
     const bread = breadData[id || "1"];
+    const { addToCart } = useCart();
 
+    const handleAddToCart = () => {
+        if (!id || !bread) return;
+        addToCart({
+            id: parseInt(id),
+            name: bread.name,
+            emoji: bread.emoji,
+            price: bread.price,
+        });
+        Alert.alert("장바구니", `${bread.name}을(를) 담았어요!`, [
+            { text: "계속 쇼핑", style: "cancel" },
+            { text: "장바구니 보기", onPress: () => router.push("/(tabs)/cart") }
+        ]);
+    };
     if (!bread) {
         return (
             <SafeAreaView style={styles.container}>
@@ -78,7 +92,7 @@ export default function ProductDetailScreen() {
             {/* 하단 버튼 */}
             <View style={styles.footer}>
                 {bread.stock > 0 ? (
-                    <Pressable style={styles.addButton}>
+                    <Pressable style={styles.addButton} onPress={handleAddToCart}>
                         <Text style={styles.addButtonText}>🛒 장바구니 담기</Text>
                     </Pressable>
                 ) : isScheduled ? (
