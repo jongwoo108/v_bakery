@@ -5,6 +5,7 @@ import { useCart } from "../../context/CartContext";
 import { breads } from "../../data/breads";
 import { useState } from "react";
 import { AlertModal } from "../../components/AlertModal";
+import { useFavorites } from "../../context/FavoritesContext";
 
 
 export default function ProductDetailScreen() {
@@ -12,6 +13,7 @@ export default function ProductDetailScreen() {
     const bread = breads.find(b => b.id === Number(id));
     const { addToCart } = useCart();
     const [showModal, setShowModal] = useState(false);
+    const { isFavorite, toggleFavorite } = useFavorites();
 
     const handleAddToCart = () => {
         if (!id || !bread) return;
@@ -33,6 +35,11 @@ export default function ProductDetailScreen() {
             <View style={styles.header}>
                 <Pressable onPress={() => router.back()} style={styles.backButton}>
                     <Text style={styles.backText}>← 뒤로</Text>
+                </Pressable>
+                <Pressable onPress={() => toggleFavorite(Number(id))}>
+                    <Text style={{ fontSize: 24 }}>
+                        {isFavorite(Number(id)) ? '❤️' : '🤍'}
+                    </Text>
                 </Pressable>
             </View>
 
@@ -113,6 +120,9 @@ const styles = StyleSheet.create({
     },
     header: {
         padding: 16,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
     },
     backButton: {
         paddingVertical: 8,
