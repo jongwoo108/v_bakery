@@ -36,7 +36,9 @@ function BreadCard({ bread, isFavorite, onToggleFavorite }: {
                     <Text style={styles.stockText}>🔥 {bread.stock}개 남음</Text>
                 )}
                 {bread.status === "scheduled" && (
-                    <Text style={styles.scheduledText}>⏰ {bread.time} 출고</Text>
+                    <Text style={styles.scheduledText}>
+                        ⏰ {getTimeRemaining(bread.scheduledTime) || bread.scheduledTime}
+                    </Text>
                 )}
                 {bread.status === "soldout" && (
                     <Text style={styles.soldoutBadge}>품절</Text>
@@ -92,6 +94,25 @@ export default function HomeScreen() {
         </SafeAreaView>
     );
 }
+
+// 남은 시간 계산 함수
+const getTimeRemaining = (scheduledTime?: string) => {
+    if (!scheduledTime) return null;
+
+    const now = new Date();
+    const [hours, minutes] = scheduledTime.split(':').map(Number);
+    const scheduled = new Date();
+    scheduled.setHours(hours, minutes, 0, 0);
+
+    const diff = scheduled.getTime() - now.getTime();
+    if (diff <= 0) return "곧 출고!";
+
+    const minutesLeft = Math.floor(diff / 60000);
+    if (minutesLeft < 60) return `${minutesLeft}분 후`;
+    const hoursLeft = Math.floor(minutesLeft / 60);
+    const mins = minutesLeft % 60;
+    return `${hoursLeft}시간 ${mins}분 후`;
+};
 
 const styles = StyleSheet.create({
     container: {

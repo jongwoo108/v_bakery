@@ -7,7 +7,7 @@ export interface Bread {
     status: "active" | "scheduled" | "soldout";
     height: number;
     story: string;
-    time?: string;      //선택적(예정 출고 시간)
+    scheduledTime?: string;  // "HH:MM" 형식 추가!
     isNew?: boolean;    //선택적(신메뉴 여부)
 }
 
@@ -94,5 +94,4 @@ export const breads: Bread[] = [
         height: 135,
         story: "이탈리아 전통 치아바타. 올리브오일과 함께 즐겨보세요."
     },
-
 ]
