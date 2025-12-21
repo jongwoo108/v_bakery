@@ -1,26 +1,9 @@
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Alert, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase, Bread } from "../lib/supabase";
 
 type BreadStatus = "active" | "scheduled" | "soldout";
-
-interface Bread {
-    id: number;
-    name: string;
-    emoji: string;
-    stock: number;
-    status: BreadStatus;
-    scheduledTime?: string;  // "HH:MM" 형식
-}
-
-const initialBreads: Bread[] = [
-    { id: 1, name: "기본소금빵", emoji: "🥐", stock: 8, status: "active" },
-    { id: 2, name: "바게트", emoji: "🥖", stock: 5, status: "active" },
-    { id: 3, name: "베이글", emoji: "🥯", stock: 0, status: "scheduled", scheduledTime: "11:30" },
-    { id: 4, name: "꿀고구마빵", emoji: "🍞", stock: 12, status: "active" },
-    { id: 5, name: "시나몬롤", emoji: "🧁", stock: 3, status: "scheduled", scheduledTime: "14:00" },
-    { id: 6, name: "크루아상", emoji: "🥐", stock: 0, status: "soldout" },
-];
 
 const statusLabels: Record<BreadStatus, string> = {
     active: "🟢 판매중",
@@ -35,10 +18,35 @@ const nextStatus: Record<BreadStatus, BreadStatus> = {
 };
 
 export default function AdminDashboard() {
-    const [breads, setBreads] = useState(initialBreads);
+    const [breads, setBreads] = useState<Bread[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    const updateStock = (id: number, newStock: number) => {
+    useEffect(() => {
+        fetchBreads();
+    }, []);
+
+    const fetchBreads = async () => {
+        const { data, error } = await supabase
+            .from('breads')
+            .select('*')
+            .order('id');
+
+        if (data) {
+            setBreads(data);
+        }
+        setLoading(false);
+    };
+
+    const updateStock = async (id: number, newStock: number) => {
         const stock = Math.max(0, newStock);
+
+        // Supabase에 저장
+        await supabase
+            .from('breads')
+            .update({ stock })
+            .eq('id', id);
+
+        // 로컬 상태 업데이트   
         setBreads(current =>
             current.map(bread =>
                 bread.id === id ? { ...bread, stock } : bread
@@ -51,7 +59,19 @@ export default function AdminDashboard() {
         updateStock(id, num);
     };
 
-    const toggleStatus = (id: number) => {
+    const toggleStatus = async (id: number) => {
+        const bread = breads.find(b => b.id === id);
+        if (!bread) return;
+
+        const newStatus = nextStatus[bread.status];
+
+        await supabase
+            .from('breads')
+            .update({ status: newStatus })
+            .eq('id', id);
+
+
+
         setBreads(current =>
             current.map(bread =>
                 bread.id === id
@@ -61,28 +81,46 @@ export default function AdminDashboard() {
         );
     };
 
-    const updateScheduledTime = (id: number, time: string) => {
+    const updateScheduledTime = async (id: number, time: string) => {
+        await supabase
+            .from('breads')
+            .update({ scheduled_time: time })
+            .eq('id', id);
+
         setBreads(current =>
             current.map(bread =>
-                bread.id === id ? { ...bread, scheduledTime: time } : bread
+                bread.id === id ? { ...bread, scheduled_time: time } : bread
             )
         );
     };
 
-    const sendNotification = (bread: Bread) => {
+    const sendNotification = async (bread: Bread) => {
         const message = `🔔 ${bread.emoji} ${bread.name} 지금 나왔어요!`;
         if (Platform.OS === 'web') {
             window.alert(message + "\n\n(실제로는 푸시 알림이 발송됩니다)");
         } else {
             Alert.alert("알림 발송", message);
         }
-        // 알림 보내고 상태를 active로 변경
+
+        await supabase
+            .from('breads')
+            .update({ status: "active" })
+            .eq('id', bread.id);
+
         setBreads(current =>
             current.map(b =>
                 b.id === bread.id ? { ...b, status: "active" as BreadStatus } : b
             )
         );
     };
+
+    if (loading) {
+        return (
+            <SafeAreaView style={styles.container}>
+                <Text style={{ padding: 20 }}>로딩중...</Text>
+            </SafeAreaView>
+        );
+    }
 
     return (
         <SafeAreaView style={styles.container}>
@@ -94,7 +132,6 @@ export default function AdminDashboard() {
             <ScrollView style={styles.list}>
                 {breads.map(bread => (
                     <View key={bread.id} style={styles.item}>
-                        {/* 상단: 빵 정보 + 재고 조절 */}
                         <View style={styles.topRow}>
                             <Text style={styles.emoji}>{bread.emoji}</Text>
                             <View style={styles.itemInfo}>
@@ -128,7 +165,6 @@ export default function AdminDashboard() {
                             </View>
                         </View>
 
-                        {/* 하단: 액션 바 */}
                         {bread.status !== "soldout" && (
                             <View style={styles.actionBar}>
                                 {bread.status === "scheduled" && (
@@ -136,7 +172,7 @@ export default function AdminDashboard() {
                                         <Text style={styles.timeLabel}>⏰</Text>
                                         <TextInput
                                             style={styles.timeInput}
-                                            value={bread.scheduledTime || ""}
+                                            value={bread.scheduled_time || ""}
                                             onChangeText={(value) => updateScheduledTime(bread.id, value)}
                                             placeholder="00:00"
                                             maxLength={5}
@@ -172,81 +208,20 @@ const styles = StyleSheet.create({
     title: { fontSize: 24, fontWeight: 'bold', color: 'white' },
     subtitle: { fontSize: 14, color: 'rgba(255,255,255,0.8)', marginTop: 4 },
     list: { flex: 1, padding: 16 },
-    item: {
-        backgroundColor: 'white',
-        padding: 16,
-        borderRadius: 12,
-        marginBottom: 12,
-    },
-    topRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
+    item: { backgroundColor: 'white', padding: 16, borderRadius: 12, marginBottom: 12 },
+    topRow: { flexDirection: 'row', alignItems: 'center' },
     emoji: { fontSize: 32, marginRight: 12 },
     itemInfo: { flex: 1 },
     itemName: { fontSize: 16, fontWeight: '600', color: '#212121' },
-    statusBadge: {
-        fontSize: 12,
-        color: '#616161',
-        marginTop: 4,
-    },
+    statusBadge: { fontSize: 12, color: '#616161', marginTop: 4 },
     stockControl: { flexDirection: 'row', alignItems: 'center' },
-    stockButton: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: '#43A047',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
+    stockButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#43A047', alignItems: 'center', justifyContent: 'center' },
     buttonText: { color: 'white', fontSize: 20, fontWeight: 'bold' },
-    stockInput: {
-        width: 60,
-        height: 40,
-        backgroundColor: '#F5F5F5',
-        borderRadius: 8,
-        textAlign: 'center',
-        fontSize: 18,
-        fontWeight: 'bold',
-        marginHorizontal: 8,
-    },
-    actionBar: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: 12,
-        paddingTop: 12,
-        borderTopWidth: 1,
-        borderTopColor: '#F0F0F0',
-        gap: 8,
-    },
-    timeLabel: {
-        fontSize: 16,
-    },
-    timeInput: {
-        width: 70,
-        height: 40,
-        backgroundColor: '#FFF8E1',
-        borderRadius: 8,
-        textAlign: 'center',
-        fontSize: 16,
-        fontWeight: 'bold',
-        borderWidth: 1,
-        borderColor: '#FFA726',
-    },
-    actionButton: {
-        paddingHorizontal: 16,
-        height: 40,
-        backgroundColor: '#43A047',
-        borderRadius: 8,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    addButton: {
-        backgroundColor: '#FFA726',
-    },
-    actionButtonText: {
-        color: 'white',
-        fontSize: 14,
-        fontWeight: 'bold',
-    },
+    stockInput: { width: 60, height: 40, backgroundColor: '#F5F5F5', borderRadius: 8, textAlign: 'center', fontSize: 18, fontWeight: 'bold', marginHorizontal: 8 },
+    actionBar: { flexDirection: 'row', alignItems: 'center', marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F0F0F0', gap: 8 },
+    timeLabel: { fontSize: 16 },
+    timeInput: { width: 70, height: 40, backgroundColor: '#FFF8E1', borderRadius: 8, textAlign: 'center', fontSize: 16, fontWeight: 'bold', borderWidth: 1, borderColor: '#FFA726' },
+    actionButton: { paddingHorizontal: 16, height: 40, backgroundColor: '#43A047', borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+    addButton: { backgroundColor: '#FFA726' },
+    actionButtonText: { color: 'white', fontSize: 14, fontWeight: 'bold' },
 });

@@ -1,8 +1,9 @@
-import { View, Text, ScrollView, StyleSheet, Pressable, useWindowDimensions } from "react-native";
+import { View, Text, ScrollView, StyleSheet, Pressable, useWindowDimensions, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useLocalSearchParams, router } from "expo-router";
-import { breads, Bread } from "../../data/breads"
+import { router } from "expo-router";
 import { useFavorites } from "../../context/FavoritesContext";
+import { supabase, Bread } from "../../lib/supabase";
+import { useState, useEffect } from "react";
 
 function BreadCard({ bread, isFavorite, onToggleFavorite }: {
     bread: Bread;
@@ -37,7 +38,7 @@ function BreadCard({ bread, isFavorite, onToggleFavorite }: {
                 )}
                 {bread.status === "scheduled" && (
                     <Text style={styles.scheduledText}>
-                        ⏰ {getTimeRemaining(bread.scheduledTime) || bread.scheduledTime}
+                        ⏰ {getTimeRemaining(bread.scheduled_time) || bread.scheduled_time}
                     </Text>
                 )}
                 {bread.status === "soldout" && (
@@ -49,8 +50,33 @@ function BreadCard({ bread, isFavorite, onToggleFavorite }: {
 }
 
 export default function HomeScreen() {
+    const [breads, setBreads] = useState<Bread[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const { width } = useWindowDimensions();
     const { isFavorite, toggleFavorite } = useFavorites();
+
+    useEffect(() => {
+        fetchBreads();
+    }, []);
+
+    const fetchBreads = async () => {
+        const { data, error } = await supabase
+            .from('breads')
+            .select('*')
+            .order('id');
+
+        if (data) {
+            setBreads(data);
+        }
+        setLoading(false);
+    };
+
+    const onRefresh = async () => {
+        setRefreshing(true);
+        await fetchBreads();
+        setRefreshing(false);
+    };
 
     // 화면 너비에 따라 열 개수 결정
     const getColumnCount = () => {
@@ -68,6 +94,13 @@ export default function HomeScreen() {
         columns[index % columnCount].push(bread);
     });
 
+    if (loading) {
+        return (
+            <View style={styles.container}>
+                <Text>Loading...</Text>
+            </View>
+        );
+    }
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.header}>
@@ -75,7 +108,11 @@ export default function HomeScreen() {
                 <Text style={styles.lineup}>📅 12/21~25 이번 주 라인업</Text>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                }
+            >
                 <View style={styles.grid}>
                     {columns.map((column, columnIndex) => (
                         <View key={columnIndex} style={styles.column}>
