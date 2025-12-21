@@ -3,7 +3,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useState, useEffect } from "react";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback } from "react";
-import { supabase, Bread } from "../lib/supabase";
+import { supabase, Bread, CATEGORIES } from "../lib/supabase";
 
 type BreadStatus = "active" | "scheduled" | "soldout";
 
@@ -23,6 +23,7 @@ export default function AdminDashboard() {
     const [breads, setBreads] = useState<Bread[]>([]);
     const [loading, setLoading] = useState(true);
     const [addStockAmounts, setAddStockAmounts] = useState<Record<number, string>>({});
+    const [selectedCategory, setSelectedCategory] = useState<string>('전체');
 
     // 화면 포커스될 때마다 새로고침
     useFocusEffect(
@@ -41,6 +42,17 @@ export default function AdminDashboard() {
             setBreads(data);
         }
         setLoading(false);
+    };
+
+    // 카테고리 필터링
+    const filteredBreads = selectedCategory === '전체'
+        ? breads
+        : breads.filter(b => b.category === selectedCategory);
+
+    // 카테고리별 개수 계산
+    const getCategoryCount = (category: string) => {
+        if (category === '전체') return breads.length;
+        return breads.filter(b => b.category === category).length;
     };
 
     const toggleStatus = async (id: number) => {
@@ -172,72 +184,128 @@ export default function AdminDashboard() {
                 <Text style={styles.subtitle}>재고 및 출고 관리</Text>
             </View>
 
+            {/* 카테고리 탭 */}
+            <View style={styles.categoryContainer}>
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.categoryScroll}
+                >
+                    {CATEGORIES.map(category => {
+                        const count = getCategoryCount(category);
+                        const isSelected = selectedCategory === category;
+                        return (
+                            <Pressable
+                                key={category}
+                                style={[
+                                    styles.categoryTab,
+                                    isSelected && styles.categoryTabActive
+                                ]}
+                                onPress={() => setSelectedCategory(category)}
+                            >
+                                <Text style={[
+                                    styles.categoryText,
+                                    isSelected && styles.categoryTextActive
+                                ]}>
+                                    {category}
+                                </Text>
+                                {count > 0 && (
+                                    <View style={[
+                                        styles.categoryBadge,
+                                        isSelected && styles.categoryBadgeActive
+                                    ]}>
+                                        <Text style={[
+                                            styles.categoryBadgeText,
+                                            isSelected && styles.categoryBadgeTextActive
+                                        ]}>
+                                            {count}
+                                        </Text>
+                                    </View>
+                                )}
+                            </Pressable>
+                        );
+                    })}
+                </ScrollView>
+            </View>
+
             <ScrollView style={styles.list}>
-                {breads.map(bread => (
-                    <View key={bread.id} style={styles.item}>
-                        <View style={styles.topRow}>
-                            <Text style={styles.emoji}>{bread.emoji}</Text>
-                            <View style={styles.itemInfo}>
-                                <Text style={styles.itemName}>{bread.name}</Text>
-                                <Pressable onPress={() => toggleStatus(bread.id)}>
-                                    <Text style={styles.statusBadge}>
-                                        {statusLabels[bread.status]}
-                                    </Text>
+                {filteredBreads.length === 0 ? (
+                    <View style={styles.emptyState}>
+                        <Text style={styles.emptyText}>
+                            {selectedCategory} 카테고리에 등록된 메뉴가 없어요
+                        </Text>
+                    </View>
+                ) : (
+                    filteredBreads.map(bread => (
+                        <View key={bread.id} style={styles.item}>
+                            <View style={styles.topRow}>
+                                <Text style={styles.emoji}>{bread.emoji}</Text>
+                                <View style={styles.itemInfo}>
+                                    <Text style={styles.itemName}>{bread.name}</Text>
+                                    <View style={styles.metaRow}>
+                                        <Pressable onPress={() => toggleStatus(bread.id)}>
+                                            <Text style={styles.statusBadge}>
+                                                {statusLabels[bread.status]}
+                                            </Text>
+                                        </Pressable>
+                                        {bread.category && (
+                                            <Text style={styles.categoryLabel}>#{bread.category}</Text>
+                                        )}
+                                    </View>
+                                </View>
+                                <Text style={styles.currentStock}>현재: {bread.stock}개</Text>
+                                <Pressable
+                                    style={styles.deleteButton}
+                                    onPress={() => deleteBread(bread)}
+                                >
+                                    <Text style={styles.deleteText}>🗑️</Text>
                                 </Pressable>
                             </View>
-                            <Text style={styles.currentStock}>현재: {bread.stock}개</Text>
-                            <Pressable
-                                style={styles.deleteButton}
-                                onPress={() => deleteBread(bread)}
-                            >
-                                <Text style={styles.deleteText}>🗑️</Text>
-                            </Pressable>
-                        </View>
 
-                        {bread.status !== "soldout" && (
-                            <View style={styles.actionBar}>
-                                {bread.status === "scheduled" && (
-                                    <>
-                                        <Text style={styles.timeLabel}>⏰</Text>
-                                        <TextInput
-                                            style={styles.timeInput}
-                                            value={bread.scheduled_time || ""}
-                                            onChangeText={(value) => updateScheduledTime(bread.id, value)}
-                                            placeholder="00:00"
-                                            maxLength={5}
-                                        />
-                                        <Pressable
-                                            style={styles.actionButton}
-                                            onPress={() => sendNotification(bread)}
-                                        >
-                                            <Text style={styles.actionButtonText}>출고완료</Text>
-                                        </Pressable>
-                                    </>
-                                )}
-                                {bread.status === "active" && (
-                                    <>
-                                        <Text style={styles.addLabel}>추가입고:</Text>
-                                        <TextInput
-                                            style={styles.addStockInput}
-                                            value={addStockAmounts[bread.id] || ""}
-                                            onChangeText={(value) =>
-                                                setAddStockAmounts(current => ({ ...current, [bread.id]: value }))
-                                            }
-                                            placeholder="0"
-                                            keyboardType="number-pad"
-                                        />
-                                        <Pressable
-                                            style={[styles.actionButton, styles.addButton]}
-                                            onPress={() => handleAddStock(bread)}
-                                        >
-                                            <Text style={styles.actionButtonText}>입고하기</Text>
-                                        </Pressable>
-                                    </>
-                                )}
-                            </View>
-                        )}
-                    </View>
-                ))}
+                            {bread.status !== "soldout" && (
+                                <View style={styles.actionBar}>
+                                    {bread.status === "scheduled" && (
+                                        <>
+                                            <Text style={styles.timeLabel}>⏰</Text>
+                                            <TextInput
+                                                style={styles.timeInput}
+                                                value={bread.scheduled_time || ""}
+                                                onChangeText={(value) => updateScheduledTime(bread.id, value)}
+                                                placeholder="00:00"
+                                                maxLength={5}
+                                            />
+                                            <Pressable
+                                                style={styles.actionButton}
+                                                onPress={() => sendNotification(bread)}
+                                            >
+                                                <Text style={styles.actionButtonText}>출고완료</Text>
+                                            </Pressable>
+                                        </>
+                                    )}
+                                    {bread.status === "active" && (
+                                        <>
+                                            <Text style={styles.addLabel}>추가입고:</Text>
+                                            <TextInput
+                                                style={styles.addStockInput}
+                                                value={addStockAmounts[bread.id] || ""}
+                                                onChangeText={(value) =>
+                                                    setAddStockAmounts(current => ({ ...current, [bread.id]: value }))
+                                                }
+                                                placeholder="0"
+                                                keyboardType="number-pad"
+                                            />
+                                            <Pressable
+                                                style={[styles.actionButton, styles.addButton]}
+                                                onPress={() => handleAddStock(bread)}
+                                            >
+                                                <Text style={styles.actionButtonText}>입고하기</Text>
+                                            </Pressable>
+                                        </>
+                                    )}
+                                </View>
+                            )}
+                        </View>
+                    )))}
             </ScrollView>
 
             {/* FAB Button */}
@@ -291,4 +359,79 @@ const styles = StyleSheet.create({
         shadowRadius: 4,
     },
     fabText: { fontSize: 28, color: 'white', fontWeight: 'bold' },
+    // 카테고리 탭 스타일
+    categoryContainer: {
+        backgroundColor: '#FFFFFF',
+        borderBottomWidth: 1,
+        borderBottomColor: '#E0E0E0',
+    },
+    categoryScroll: {
+        paddingHorizontal: 12,
+        paddingVertical: 12,
+        gap: 8,
+    },
+    categoryTab: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderRadius: 20,
+        backgroundColor: '#F5F5F5',
+        gap: 6,
+    },
+    categoryTabActive: {
+        backgroundColor: '#43A047',
+    },
+    categoryText: {
+        fontSize: 14,
+        color: '#616161',
+        fontWeight: '500',
+    },
+    categoryTextActive: {
+        color: '#FFFFFF',
+    },
+    categoryBadge: {
+        backgroundColor: '#E0E0E0',
+        borderRadius: 10,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        minWidth: 20,
+        alignItems: 'center',
+    },
+    categoryBadgeActive: {
+        backgroundColor: 'rgba(255,255,255,0.3)',
+    },
+    categoryBadgeText: {
+        fontSize: 11,
+        color: '#616161',
+        fontWeight: '600',
+    },
+    categoryBadgeTextActive: {
+        color: '#FFFFFF',
+    },
+    // 빈 상태 스타일
+    emptyState: {
+        padding: 40,
+        alignItems: 'center',
+    },
+    emptyText: {
+        fontSize: 15,
+        color: '#9E9E9E',
+        textAlign: 'center',
+    },
+    // 메타 정보 스타일
+    metaRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginTop: 4,
+    },
+    categoryLabel: {
+        fontSize: 11,
+        color: '#9E9E9E',
+        backgroundColor: '#F5F5F5',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
 });

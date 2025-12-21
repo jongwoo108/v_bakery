@@ -35,6 +35,31 @@ function BreadCard({ bread, isFavorite, onToggleFavorite, currentTime }: {
     currentTime: number;
 }) {
     const isInactive = bread.status === "scheduled" || bread.status === "soldout";
+    const { width } = useWindowDimensions();
+    const [imageHeight, setImageHeight] = useState<number>(bread.height || 150);
+
+    // 카드 너비 계산 (2열 기준, 패딩 고려)
+    const cardWidth = (width - 24 - 16) / 2; // 좌우 패딩 12*2 + 열 간격 8*2
+
+    // 이미지 로드 시 비율 계산
+    useEffect(() => {
+        if (bread.image_url) {
+            Image.getSize(
+                bread.image_url,
+                (imgWidth, imgHeight) => {
+                    const aspectRatio = imgHeight / imgWidth;
+                    const calculatedHeight = cardWidth * aspectRatio;
+                    // 최소/최대 높이 제한
+                    const clampedHeight = Math.max(100, Math.min(300, calculatedHeight));
+                    setImageHeight(clampedHeight);
+                },
+                () => {
+                    // 에러 시 기본 높이 사용
+                    setImageHeight(bread.height || 150);
+                }
+            );
+        }
+    }, [bread.image_url, cardWidth]);
 
     return (
         <Pressable
@@ -45,7 +70,7 @@ function BreadCard({ bread, isFavorite, onToggleFavorite, currentTime }: {
                     <Text style={styles.newBadgeText}>NEW</Text>
                 </View>
             )}
-            <View style={[styles.cardImage, { height: bread.height }]}>
+            <View style={[styles.cardImage, { height: imageHeight }]}>
                 {bread.image_url ? (
                     <Image source={{ uri: bread.image_url }} style={styles.breadImage} />
                 ) : (

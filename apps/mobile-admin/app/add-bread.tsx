@@ -3,12 +3,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useState } from "react";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import { supabase } from "../lib/supabase";
+import { supabase, CATEGORIES } from "../lib/supabase";
+
+// 카테고리 선택용 (전체 제외)
+const CATEGORY_OPTIONS = CATEGORIES.filter(c => c !== '전체');
 
 export default function AddBreadScreen() {
     const [name, setName] = useState("");
     const [price, setPrice] = useState("");
     const [story, setStory] = useState("");
+    const [category, setCategory] = useState<string | null>(null);
+    const [showCategoryPicker, setShowCategoryPicker] = useState(false);
     const [imageUri, setImageUri] = useState<string | null>(null);
     const [uploading, setUploading] = useState(false);
 
@@ -102,6 +107,7 @@ export default function AddBreadScreen() {
                 scheduled_time: null,
                 is_new: true,
                 image_url: imageUrl,
+                category: category,
             });
 
             if (error) {
@@ -184,6 +190,44 @@ export default function AddBreadScreen() {
                     />
                 </View>
 
+                {/* Category Picker */}
+                <View style={[styles.field, { zIndex: 100 }]}>
+                    <Text style={styles.label}>카테고리</Text>
+                    <Pressable
+                        style={styles.pickerButton}
+                        onPress={() => setShowCategoryPicker(!showCategoryPicker)}
+                    >
+                        <Text style={category ? styles.pickerText : styles.pickerPlaceholder}>
+                            {category || "카테고리 선택"}
+                        </Text>
+                        <Text>{showCategoryPicker ? '▲' : '▼'}</Text>
+                    </Pressable>
+                    {showCategoryPicker && (
+                        <ScrollView style={styles.categoryDropdown} nestedScrollEnabled>
+                            {CATEGORY_OPTIONS.map(cat => (
+                                <Pressable
+                                    key={cat}
+                                    style={[
+                                        styles.categoryOption,
+                                        category === cat && styles.categoryOptionActive
+                                    ]}
+                                    onPress={() => {
+                                        setCategory(cat);
+                                        setShowCategoryPicker(false);
+                                    }}
+                                >
+                                    <Text style={[
+                                        styles.categoryOptionText,
+                                        category === cat && styles.categoryOptionTextActive
+                                    ]}>
+                                        {cat}
+                                    </Text>
+                                </Pressable>
+                            ))}
+                        </ScrollView>
+                    )}
+                </View>
+
                 <View style={styles.field}>
                     <Text style={styles.label}>스토리</Text>
                     <TextInput
@@ -244,4 +288,57 @@ const styles = StyleSheet.create({
     },
     textArea: { height: 100, textAlignVertical: "top" },
     row: { flexDirection: "row" },
+    // Category picker styles
+    pickerButton: {
+        backgroundColor: "white",
+        borderRadius: 8,
+        padding: 12,
+        borderWidth: 1,
+        borderColor: "#E0E0E0",
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+    },
+    pickerText: {
+        fontSize: 16,
+        color: "#212121",
+    },
+    pickerPlaceholder: {
+        fontSize: 16,
+        color: "#9E9E9E",
+    },
+    categoryDropdown: {
+        position: "absolute",
+        top: 50,
+        left: 0,
+        right: 0,
+        backgroundColor: "white",
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: "#E0E0E0",
+        marginTop: 4,
+        maxHeight: 200,
+        zIndex: 1000,
+        elevation: 5,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+    },
+    categoryOption: {
+        padding: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: "#F0F0F0",
+    },
+    categoryOptionActive: {
+        backgroundColor: "#E8F5E9",
+    },
+    categoryOptionText: {
+        fontSize: 15,
+        color: "#616161",
+    },
+    categoryOptionTextActive: {
+        color: "#43A047",
+        fontWeight: "600",
+    },
 });
