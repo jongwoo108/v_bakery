@@ -5,10 +5,34 @@ import { useFavorites } from "../../context/FavoritesContext";
 import { supabase, Bread } from "../../lib/supabase";
 import { useState, useEffect } from "react";
 
-function BreadCard({ bread, isFavorite, onToggleFavorite }: {
+// 남은 시간 계산 함수
+const getTimeRemaining = (scheduledTime?: string | null): string | null => {
+    if (!scheduledTime) return null;
+
+    const now = new Date();
+    const [hours, minutes] = scheduledTime.split(':').map(Number);
+    const scheduled = new Date();
+    scheduled.setHours(hours, minutes, 0, 0);
+
+    const diff = scheduled.getTime() - now.getTime();
+    if (diff <= 0) return "곧 출고!";
+
+    const totalSeconds = Math.floor(diff / 1000);
+    const hoursLeft = Math.floor(totalSeconds / 3600);
+    const minutesLeft = Math.floor((totalSeconds % 3600) / 60);
+    const secondsLeft = totalSeconds % 60;
+
+    if (hoursLeft > 0) {
+        return `${hoursLeft}시간 ${minutesLeft}분 ${secondsLeft}초`;
+    }
+    return `${minutesLeft}분 ${secondsLeft}초`;
+};
+
+function BreadCard({ bread, isFavorite, onToggleFavorite, currentTime }: {
     bread: Bread;
     isFavorite: boolean;
     onToggleFavorite: () => void;
+    currentTime: number;
 }) {
     const isInactive = bread.status === "scheduled" || bread.status === "soldout";
 
@@ -16,7 +40,7 @@ function BreadCard({ bread, isFavorite, onToggleFavorite }: {
         <Pressable
             style={[styles.card, isInactive && styles.cardInactive]}
             onPress={() => router.push(`/product/${bread.id}`)}>
-            {bread.isNew && (
+            {bread.is_new && (
                 <View style={styles.newBadge}>
                     <Text style={styles.newBadgeText}>NEW</Text>
                 </View>
@@ -53,8 +77,17 @@ export default function HomeScreen() {
     const [breads, setBreads] = useState<Bread[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [currentTime, setCurrentTime] = useState(Date.now());
     const { width } = useWindowDimensions();
     const { isFavorite, toggleFavorite } = useFavorites();
+
+    // 1초마다 currentTime 업데이트 (타이머 효과)
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setCurrentTime(Date.now());
+        }, 1000);
+        return () => clearInterval(timer);
+    }, []);
 
     useEffect(() => {
         fetchBreads();
@@ -122,6 +155,7 @@ export default function HomeScreen() {
                                     bread={bread}
                                     isFavorite={isFavorite(bread.id)}
                                     onToggleFavorite={() => toggleFavorite(bread.id)}
+                                    currentTime={currentTime}
                                 />
                             ))}
                         </View>
@@ -132,24 +166,6 @@ export default function HomeScreen() {
     );
 }
 
-// 남은 시간 계산 함수
-const getTimeRemaining = (scheduledTime?: string) => {
-    if (!scheduledTime) return null;
-
-    const now = new Date();
-    const [hours, minutes] = scheduledTime.split(':').map(Number);
-    const scheduled = new Date();
-    scheduled.setHours(hours, minutes, 0, 0);
-
-    const diff = scheduled.getTime() - now.getTime();
-    if (diff <= 0) return "곧 출고!";
-
-    const minutesLeft = Math.floor(diff / 60000);
-    if (minutesLeft < 60) return `${minutesLeft}분 후`;
-    const hoursLeft = Math.floor(minutesLeft / 60);
-    const mins = minutesLeft % 60;
-    return `${hoursLeft}시간 ${mins}분 후`;
-};
 
 const styles = StyleSheet.create({
     container: {

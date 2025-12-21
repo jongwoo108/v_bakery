@@ -20,6 +20,7 @@ const nextStatus: Record<BreadStatus, BreadStatus> = {
 export default function AdminDashboard() {
     const [breads, setBreads] = useState<Bread[]>([]);
     const [loading, setLoading] = useState(true);
+    const [addStockAmounts, setAddStockAmounts] = useState<Record<number, string>>({});
 
     useEffect(() => {
         fetchBreads();
@@ -37,28 +38,6 @@ export default function AdminDashboard() {
         setLoading(false);
     };
 
-    const updateStock = async (id: number, newStock: number) => {
-        const stock = Math.max(0, newStock);
-
-        // Supabase에 저장
-        await supabase
-            .from('breads')
-            .update({ stock })
-            .eq('id', id);
-
-        // 로컬 상태 업데이트   
-        setBreads(current =>
-            current.map(bread =>
-                bread.id === id ? { ...bread, stock } : bread
-            )
-        );
-    };
-
-    const handleStockChange = (id: number, value: string) => {
-        const num = parseInt(value) || 0;
-        updateStock(id, num);
-    };
-
     const toggleStatus = async (id: number) => {
         const bread = breads.find(b => b.id === id);
         if (!bread) return;
@@ -69,8 +48,6 @@ export default function AdminDashboard() {
             .from('breads')
             .update({ status: newStatus })
             .eq('id', id);
-
-
 
         setBreads(current =>
             current.map(bread =>
@@ -114,6 +91,42 @@ export default function AdminDashboard() {
         );
     };
 
+    const handleAddStock = async (bread: Bread) => {
+        const amount = parseInt(addStockAmounts[bread.id] || "0");
+        if (amount <= 0) {
+            if (Platform.OS === 'web') {
+                window.alert("추가할 수량을 입력하세요");
+            } else {
+                Alert.alert("알림", "추가할 수량을 입력하세요");
+            }
+            return;
+        }
+
+        const newStock = bread.stock + amount;
+
+        await supabase
+            .from('breads')
+            .update({ stock: newStock })
+            .eq('id', bread.id);
+
+        setBreads(current =>
+            current.map(b =>
+                b.id === bread.id ? { ...b, stock: newStock } : b
+            )
+        );
+
+        // 입력 초기화
+        setAddStockAmounts(current => ({ ...current, [bread.id]: "" }));
+
+        // 알림
+        const message = `📦 ${bread.name} ${amount}개 추가입고 완료!\n현재 재고: ${newStock}개`;
+        if (Platform.OS === 'web') {
+            window.alert(message);
+        } else {
+            Alert.alert("입고 완료", message);
+        }
+    };
+
     if (loading) {
         return (
             <SafeAreaView style={styles.container}>
@@ -142,27 +155,7 @@ export default function AdminDashboard() {
                                     </Text>
                                 </Pressable>
                             </View>
-                            <View style={styles.stockControl}>
-                                <Pressable
-                                    style={styles.stockButton}
-                                    onPress={() => updateStock(bread.id, bread.stock - 1)}
-                                >
-                                    <Text style={styles.buttonText}>-</Text>
-                                </Pressable>
-                                <TextInput
-                                    style={styles.stockInput}
-                                    value={String(bread.stock)}
-                                    onChangeText={(value) => handleStockChange(bread.id, value)}
-                                    keyboardType="number-pad"
-                                    selectTextOnFocus
-                                />
-                                <Pressable
-                                    style={styles.stockButton}
-                                    onPress={() => updateStock(bread.id, bread.stock + 1)}
-                                >
-                                    <Text style={styles.buttonText}>+</Text>
-                                </Pressable>
-                            </View>
+                            <Text style={styles.currentStock}>현재: {bread.stock}개</Text>
                         </View>
 
                         {bread.status !== "soldout" && (
@@ -186,12 +179,24 @@ export default function AdminDashboard() {
                                     </>
                                 )}
                                 {bread.status === "active" && (
-                                    <Pressable
-                                        style={[styles.actionButton, styles.addButton]}
-                                        onPress={() => sendNotification(bread)}
-                                    >
-                                        <Text style={styles.actionButtonText}>➕ 추가입고</Text>
-                                    </Pressable>
+                                    <>
+                                        <Text style={styles.addLabel}>추가입고:</Text>
+                                        <TextInput
+                                            style={styles.addStockInput}
+                                            value={addStockAmounts[bread.id] || ""}
+                                            onChangeText={(value) =>
+                                                setAddStockAmounts(current => ({ ...current, [bread.id]: value }))
+                                            }
+                                            placeholder="0"
+                                            keyboardType="number-pad"
+                                        />
+                                        <Pressable
+                                            style={[styles.actionButton, styles.addButton]}
+                                            onPress={() => handleAddStock(bread)}
+                                        >
+                                            <Text style={styles.actionButtonText}>입고하기</Text>
+                                        </Pressable>
+                                    </>
                                 )}
                             </View>
                         )}
@@ -214,13 +219,12 @@ const styles = StyleSheet.create({
     itemInfo: { flex: 1 },
     itemName: { fontSize: 16, fontWeight: '600', color: '#212121' },
     statusBadge: { fontSize: 12, color: '#616161', marginTop: 4 },
-    stockControl: { flexDirection: 'row', alignItems: 'center' },
-    stockButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#43A047', alignItems: 'center', justifyContent: 'center' },
-    buttonText: { color: 'white', fontSize: 20, fontWeight: 'bold' },
-    stockInput: { width: 60, height: 40, backgroundColor: '#F5F5F5', borderRadius: 8, textAlign: 'center', fontSize: 18, fontWeight: 'bold', marginHorizontal: 8 },
+    currentStock: { fontSize: 14, fontWeight: '600', color: '#43A047' },
     actionBar: { flexDirection: 'row', alignItems: 'center', marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F0F0F0', gap: 8 },
     timeLabel: { fontSize: 16 },
+    addLabel: { fontSize: 14, color: '#616161' },
     timeInput: { width: 70, height: 40, backgroundColor: '#FFF8E1', borderRadius: 8, textAlign: 'center', fontSize: 16, fontWeight: 'bold', borderWidth: 1, borderColor: '#FFA726' },
+    addStockInput: { width: 60, height: 40, backgroundColor: '#FFF8E1', borderRadius: 8, textAlign: 'center', fontSize: 16, fontWeight: 'bold', borderWidth: 1, borderColor: '#FFA726' },
     actionButton: { paddingHorizontal: 16, height: 40, backgroundColor: '#43A047', borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
     addButton: { backgroundColor: '#FFA726' },
     actionButtonText: { color: 'white', fontSize: 14, fontWeight: 'bold' },
