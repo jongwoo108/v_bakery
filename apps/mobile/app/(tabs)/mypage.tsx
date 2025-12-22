@@ -1,17 +1,34 @@
 import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFavorites } from "../../context/FavoritesContext";
+import { useAuth } from "../../context/AuthContext";
 import { breads } from "../../data/breads";
 import { router } from "expo-router";
 
 export default function MyPageScreen() {
-
     const { favorites, removeFavorite } = useFavorites();
+    const { user, signOut } = useAuth();
     const favoriteBreads = breads.filter(bread => favorites.includes(bread.id));
+
+    const handleLogout = async () => {
+        await signOut();
+        router.replace('/login');
+    };
 
     return (
         <SafeAreaView style={styles.container}>
-            <Text style={styles.title}>👤 마이페이지</Text>
+            <View style={styles.header}>
+                <Text style={styles.title}>👤 마이페이지</Text>
+                <Pressable style={styles.logoutButton} onPress={handleLogout}>
+                    <Text style={styles.logoutText}>로그아웃</Text>
+                </Pressable>
+            </View>
+
+            {user && (
+                <View style={styles.userInfo}>
+                    <Text style={styles.userEmail}>📧 {user.email}</Text>
+                </View>
+            )}
 
             <ScrollView>
                 <View style={styles.section}>
@@ -48,7 +65,12 @@ export default function MyPageScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#FAFAFA' },
-    title: { fontSize: 24, fontWeight: 'bold', padding: 20, color: '#212121' },
+    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16 },
+    title: { fontSize: 24, fontWeight: 'bold', color: '#212121' },
+    logoutButton: { paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#F5F5F5', borderRadius: 16 },
+    logoutText: { color: '#757575', fontSize: 12, fontWeight: '600' },
+    userInfo: { backgroundColor: '#FFF8E1', marginHorizontal: 16, marginBottom: 8, padding: 12, borderRadius: 8 },
+    userEmail: { fontSize: 14, color: '#5D4037' },
     section: { backgroundColor: '#FFFFFF', margin: 16, padding: 16, borderRadius: 12 },
     sectionTitle: { fontSize: 16, fontWeight: '600', color: '#212121', marginBottom: 12 },
     placeholder: { fontSize: 14, color: '#9E9E9E' },

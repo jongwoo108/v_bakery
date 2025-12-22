@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback } from "react";
 import { supabase, Bread, CATEGORIES } from "../lib/supabase";
+import { useAuth } from "../context/AuthContext";
+
+
 
 type BreadStatus = "active" | "scheduled" | "soldout";
 
@@ -20,10 +23,16 @@ const nextStatus: Record<BreadStatus, BreadStatus> = {
 };
 
 export default function AdminDashboard() {
+    const { signOut } = useAuth();
     const [breads, setBreads] = useState<Bread[]>([]);
     const [loading, setLoading] = useState(true);
     const [addStockAmounts, setAddStockAmounts] = useState<Record<number, string>>({});
     const [selectedCategory, setSelectedCategory] = useState<string>('전체');
+
+    const handleLogout = async () => {
+        await signOut();
+        router.replace('/login');
+    };
 
     // 화면 포커스될 때마다 새로고침
     useFocusEffect(
@@ -180,7 +189,12 @@ export default function AdminDashboard() {
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.header}>
-                <Text style={styles.title}>🍞 V-Bakery 관리</Text>
+                <View style={styles.headerTop}>
+                    <Text style={styles.title}>🍞 V-Bakery 관리</Text>
+                    <Pressable style={styles.logoutButton} onPress={handleLogout}>
+                        <Text style={styles.logoutText}>로그아웃</Text>
+                    </Pressable>
+                </View>
                 <Text style={styles.subtitle}>재고 및 출고 관리</Text>
             </View>
 
@@ -322,8 +336,11 @@ export default function AdminDashboard() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#FAFAFA' },
     header: { padding: 20, backgroundColor: '#43A047' },
+    headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     title: { fontSize: 24, fontWeight: 'bold', color: 'white' },
     subtitle: { fontSize: 14, color: 'rgba(255,255,255,0.8)', marginTop: 4 },
+    logoutButton: { paddingHorizontal: 12, paddingVertical: 6, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 16 },
+    logoutText: { color: 'white', fontSize: 12, fontWeight: '600' },
     list: { flex: 1, padding: 16 },
     item: { backgroundColor: 'white', padding: 16, borderRadius: 12, marginBottom: 12 },
     topRow: { flexDirection: 'row', alignItems: 'center' },

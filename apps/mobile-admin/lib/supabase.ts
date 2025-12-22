@@ -1,9 +1,17 @@
 import { createClient } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const supabaseUrl = 'https://oeikpszpyajziwvqqwdp.supabase.co';
 const supabaseKey = 'sb_publishable__WXa3g447gmDDjTfQ0rrrA_F-t31sJL';
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+    auth: {
+        storage: AsyncStorage,
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: true,  // OAuth 토큰 감지 활성화
+    },
+});
 
 export interface Bread {
     id: number;
